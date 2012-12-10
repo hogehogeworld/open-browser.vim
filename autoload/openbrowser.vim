@@ -140,6 +140,14 @@ endif
 if !exists('g:openbrowser_open_vim_command')
     let g:openbrowser_open_vim_command = 'vsplit'
 endif
+let g:openbrowser_open_order = extend(
+\   get(g:, 'openbrowser_open_order', {}),
+\   {
+\      'open': ['filepath', 'file_uri', 'uri'],
+\      'smart_search': ['uri', 'file_uri', 'filepath'],
+\   },
+\   'keep'
+\)
 " }}}
 
 
@@ -248,6 +256,7 @@ lockvar s:NONE
 " See s:detect_query_type()
 let [
 \   s:QT_URI,
+\   s:QT_FILE_URI,
 \   s:QT_FILEPATH,
 \   s:QT_UNKNOWN
 \] = range(3)
@@ -350,16 +359,7 @@ endfunction "}}}
 
 
 function! s:seems_path(uri) "{{{
-    " - Has no invalid filename character (seeing &isfname)
-    " and, either
-    " - file:// prefixed string and existed file path
-    " - Existed file path
-    if stridx(a:uri, 'file://') is 0
-        let path = substitute(a:uri, '^file://', '', '')
-    else
-        let path = a:uri
-    endif
-    return getftype(path) !=# ''
+    return getftype(a:uri) !=# ''
 endfunction "}}}
 
 function! s:seems_uri(uri) "{{{
@@ -369,20 +369,27 @@ function! s:seems_uri(uri) "{{{
     \   && uri.host() =~# '\.'
 endfunction "}}}
 
+function! s:seems_file_uri(uri) "{{{
+    return stridx(a:uri, 'file://') is 0
+endfunction "}}}
+
 function! s:detect_query_type(query, callee) "{{{
     let seems = {
     \   'uri': s:seems_uri(a:query),
+    \   'file_uri': s:seems_file_uri(a:query),
     \   'filepath': s:seems_path(a:query),
     \}
 
     if a:callee ==# s:Q_OPEN
         " filepath -> uri -> unknown
         return seems.filepath ? s:QT_FILEPATH :
+        \      seems.file_uri ? s:QT_FILE_URI :
         \      seems.uri      ? s:QT_URI :
         \      s:QT_UNKNOWN
     elseif a:callee ==# s:Q_SMART_SEARCH
         " uri -> filepath -> unknown
         return seems.uri      ? s:QT_URI :
+        \      seems.file_uri ? s:QT_FILE_URI :
         \      seems.filepath ? s:QT_FILEPATH :
         \      s:QT_UNKNOWN
     else
